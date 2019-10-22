@@ -20,4 +20,8 @@ If the aspect ratio is less than 1.25, the image will be resized to 3200 pixels 
 
 ## Image Color Format
 
-Because the sketches are in charcoal and essentailly grayscale, I thought it would make sense to use the LAB image format. In this format, the first channel, Lightness, encodes the most signficant information about the sketch. The remaining two channels provide some color shading information.
+Because the sketches are in charcoal and essentailly grayscale, I thought it would make sense to use the LAB image format. In this format, the first channel, Lightness, encodes the most signficant information about the sketch. The remaining two channels provide some color shading information. Because there is relatively little color shading, this channels are less important.
+
+I also thought it would speed up the training process if I pre-processed all the images into standard size and format. I used the PIL Image and the skimage color modules to convert the images to numpy arrays in LAB color format, all padded to an aspect ratio of 1.25. However, I found that this resulted in very, very large files.
+
+In the interest of keeping smaller files and faster training time, I decided to change the approach to using a pure grayscale image format for training. Because the images are charcoal sketches with very little color variation converting them to 'L' color format should preserve nearly all of the image information. This reduces the data from three dimensions to two, which makes for smaller files and much faster training. Once the model is fully trained in grayscale, an image can be decomposed into its three color components and each color channel can be individually transformed (i.e, have the ruled lines removed), and then the final image can be built from the combination of the three channels.
