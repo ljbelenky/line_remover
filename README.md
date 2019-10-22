@@ -25,3 +25,7 @@ Because the sketches are in charcoal and essentailly grayscale, I thought it wou
 I also thought it would speed up the training process if I pre-processed all the images into standard size and format. I used the PIL Image and the skimage color modules to convert the images to numpy arrays in LAB color format, all padded to an aspect ratio of 1.25. However, I found that this resulted in very, very large files.
 
 In the interest of keeping smaller files and faster training time, I decided to change the approach to using a pure grayscale image format for training. Because the images are charcoal sketches with very little color variation converting them to 'L' color format should preserve nearly all of the image information. This reduces the data from three dimensions to two, which makes for smaller files and much faster training. Once the model is fully trained in grayscale, an image can be decomposed into its three color components and each color channel can be individually transformed (i.e, have the ruled lines removed), and then the final image can be built from the combination of the three channels.
+
+One should bear in mind that color channels are all of equal brightness. For example, pure red (255, 0, 0) does not look as bright as pure green (0, 255, 0). For this reason, it is necessary to use the ITU-R 601-2 luma transform to adjusts the weights of the colors when manually combining color channels.
+
+    L = R * 299/1000 + G * 587/1000 + B * 114/1000
