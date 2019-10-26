@@ -12,16 +12,11 @@ class RulerGenerator:
         # outer_width = min(int(line_width), 1)
         h, w = shape
 
-        basis = np.array([0]*spacing + [color]*line_width)
+        basis = np.array([255]*spacing + [color]*line_width).astype('uint8')
 
-        lines_array = np.array(
-            np.tile(basis, int((h*w)/len(basis)))).reshape(h, w)
+        column = np.tile(basis, 1+int(h/len(basis)))[0:h]
 
-        return lines_array
-
-        # lines_array = np.zeros(shape=shape)
-
-        # number_of_lines = shape[0]/(spacing+line_width))
+        self.lines_array = np.tile(column, w).reshape(h, w).T
 
 
 class SketchDataGenerator():
