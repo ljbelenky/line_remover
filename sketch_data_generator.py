@@ -30,7 +30,6 @@ class RulerGenerator:
 
 
 
-
 class SketchDataGenerator():
     '''SketchDataGenerator yields pairs of sketches with/without ruled liens and image augmentation'''
 
