@@ -14,9 +14,21 @@ class RulerGenerator:
 
         basis = np.array([255]*spacing + [color]*line_width).astype('uint8')
 
-        column = np.tile(basis, 1+int(h/len(basis)))[0:h]
+        column = np.tile(basis, 1+int(2*h/len(basis)))[0:2*h]
 
-        self.lines_array = np.tile(column, w).reshape(h, w).T
+        lines_array = np.tile(column, 2*w).reshape(2*w, 2*h).T
+
+        self.image = Image.fromarray(lines_array)
+        self.image = self.image.rotate(angle)
+
+        left = int(w/2)
+        right = left + w
+        top = int(h/2)
+        bottom = top + h
+
+        self.image = self.image.crop((left, top, right, bottom))
+
+
 
 
 class SketchDataGenerator():
@@ -42,9 +54,6 @@ class SketchDataGenerator():
 
 
 if __name__ == '__main__':
-    sdg = SketchDataGenerator()
-
-    sketches = sdg.flow_from_directory('Sketches/Unruled')
-
-    for sketch in sketches:
-        break
+    rg = RulerGenerator((400,320), 3, 25, 50, 128, 10, 10)
+    i = rg.image
+    i.show()
