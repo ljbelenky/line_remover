@@ -8,26 +8,43 @@ import matplotlib.pyplot as plt
 
 class RulerGenerator:
     def __init__(self, shape, line_width, spacing, v_offset, raggedness, color, color_variation, angle):
-        # inner_width = int(line_width/3)
-        # outer_width = min(int(line_width), 1)
+        assert 0 <= raggedness <= 1
+        assert 0 <= color <= 255
+        assert 0 <= color_variation <= 255
+        assert -180 <= angle <= 180
+        assert 0 <= v_offset <= 1
+
         h, w = shape
 
         basis = np.array([0]*spacing + [1]*line_width).astype('uint8')
         column = np.tile(basis, 1+int(2*h/len(basis)))[0:2*h]
         lines_array = np.tile(column, 2*w).reshape(2*w, 2*h).T
 
-        self.color_array = np.random.random(size = shape)*color_variation + color
+        complementary_color = 255 - color
 
-        self.image = Image.fromarray(lines_array)
-        self.image = self.image.rotate(angle)
+        color_array = np.random.normal(size = (2*h, 2*w))*color_variation + complementary_color - color_variation/2 
+        color_array = color_array.astype('uint8')
+
+        ragged_array = 1*(np.random.random(size = (2*h, 2*w))>raggedness).astype('uint8')
+
+        lines_array *= color_array
+        lines_array *= ragged_array
+        image_array = (np.ones(shape = (2*h, 2*w))*255 - lines_array).astype('uint8')
+
+
+        image = Image.fromarray(image_array)
+        image = image.rotate(angle)
 
         left = int(w/2)
         right = left + w
         top = int(h/2 + v_offset*len(basis))
         bottom = top + h
 
-        self.image = self.image.crop((left, top, right, bottom))
+        self.image = image.crop((left, top, right, bottom))
 
+    @property
+    def asarray(self):
+        return np.asarray(self.image)
 
 
 class SketchDataGenerator():
@@ -53,6 +70,7 @@ class SketchDataGenerator():
 
 
 if __name__ == '__main__':
-    rg = RulerGenerator((400,320), 3, 25, 3, 50, 128, 10, 10)
+    rg = RulerGenerator(shape = (4000,3200), line_width = 3, spacing = 25, v_offset = .3, raggedness= .10, color =  128, color_variation= 25, angle = 10)
+    # rg = RulerGenerator(shape = (4000,3200), line_width = 3, spacing = 25, v_offset = .3, raggedness= .50, color =  128, color_variation= 40, angle = 10)
     i = rg.image
     i.show()
