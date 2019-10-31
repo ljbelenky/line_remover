@@ -29,10 +29,8 @@ class RulerGenerator:
 
         lines_array *= color_array
         lines_array *= ragged_array
-        image_array = (np.ones(shape = (2*h, 2*w))*255 - lines_array).astype('uint8')
 
-
-        image = Image.fromarray(image_array)
+        image = Image.fromarray(lines_array)
         image = image.rotate(angle)
 
         left = int(w/2)
@@ -59,18 +57,34 @@ class SketchDataGenerator():
         self.dilate = dilate
         self.contrast = contrast
 
-    def flow_from_directory(self, directory):
+    def flow_from_directory(self, directory, result_type = 'arrays'):
 
         filenames = os.listdir(directory)
         while True:
             for filename in filenames:
                 sketch = Image.open(os.path.join(directory, filename))
-                # sketch = np.asarray(sketch)
-                yield sketch
+                lines = RulerGenerator(shape = (500,400), line_width = 3, spacing = 25, v_offset = .3, raggedness= .10, color =  128, color_variation= 25, angle = 10).asarray
+
+                sketch_array = np.asarray(sketch)
+                X = sketch_array - lines
+                Y = sketch_array
+
+                if result_type == 'arrays':
+                    yield X, Y
+
+                elif result_type == 'images':
+                    yield Image.fromarray(np.hstack([X,Y]))
+
+                else:
+                    raise Exception
 
 
 if __name__ == '__main__':
-    rg = RulerGenerator(shape = (4000,3200), line_width = 3, spacing = 25, v_offset = .3, raggedness= .10, color =  128, color_variation= 25, angle = 10)
-    # rg = RulerGenerator(shape = (4000,3200), line_width = 3, spacing = 25, v_offset = .3, raggedness= .50, color =  128, color_variation= 40, angle = 10)
+    rg = RulerGenerator(shape = (500,400), line_width = 3, spacing = 25, v_offset = .3, raggedness= .10, color =  128, color_variation= 25, angle = 10)
     i = rg.image
-    i.show()
+    # i.show()
+
+    sdg = SketchDataGenerator()
+
+    for sketch in sdg.flow_from_directory('grayscale_images/medium/Unruled', result_type='images'):
+        sketch.show()
