@@ -62,9 +62,9 @@ class SketchDataGenerator():
             for filename in filenames:
                 sketch = Image.open(os.path.join(directory, filename))
                 
-                lines = RulerGenerator(shape = sketch.size, line_width = 3, spacing = 25, v_offset = .3, raggedness= .10, color =  128, color_variation= 25, angle = 10).image
+                lines = RulerGenerator(shape = sketch.size, line_width = 3, spacing = 50, v_offset = .3, raggedness= .0, color =  255, color_variation= 0, angle = 10).image
 
-                ruled_sketch = Image.blend(sketch, lines, alpha = .5)
+                ruled_sketch = Image.blend(sketch, lines, alpha = .125)
 
                 if result_type == 'arrays':
                     yield np.asarray(ruled_sketch), np.asarray(sketch)
@@ -86,6 +86,6 @@ if __name__ == '__main__':
 
     sdg = SketchDataGenerator()
 
-    for sketch in sdg.flow_from_directory('grayscale_images/medium/Unruled', result_type='images'):
+    for sketch in sdg.flow_from_directory('grayscale_images/large/Unruled', result_type='images'):
         sketch.show()
         break
