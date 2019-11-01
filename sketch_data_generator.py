@@ -71,8 +71,15 @@ class SketchDataGenerator():
                     sketch = sketch.transpose(method = method)
 
                 
+                line_width = int(np.random.random() * 6)
+                spacing = int(np.random.random() * 100)
+                v_offset = np.random.random()
+                raggedness = np.random.random()/4
+                color = np.random.random() * 20 + 160
+                color_variation = np.random.random() * 30 + 30
+                angle = 10 - np.random.random() * 20
                 
-                lines = RulerGenerator(shape = sketch.size, line_width = 3, spacing = 50, v_offset = .3, raggedness= .30, color =  188, color_variation= 30, angle = 10).image
+                lines = RulerGenerator(shape = sketch.size, line_width = line_width, spacing = spacing, v_offset = v_offset, raggedness= raggedness, color =  color, color_variation= color_variation, angle = angle).image
 
                 ruled_sketch = Image.blend(sketch, lines, alpha = .125)
 
