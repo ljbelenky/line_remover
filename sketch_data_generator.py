@@ -46,7 +46,7 @@ class RulerGenerator:
 class SketchDataGenerator():
     '''SketchDataGenerator yields pairs of sketches with/without ruled liens and image augmentation'''
 
-    def __init__(self, flip_horizontal=False, flip_vertical=False, h_shift=0, v_shift=0, rotate=0, dilate=0, contrast=0):
+    def __init__(self, flip_horizontal=True, flip_vertical=True, h_shift=0, v_shift=0, rotate=0, dilate=0, contrast=0):
         self.flip_horizontal = flip_horizontal
         self.flip_vertical = flip_vertical
         self.h_shift = h_shift
@@ -61,8 +61,18 @@ class SketchDataGenerator():
         while True:
             for filename in filenames:
                 sketch = Image.open(os.path.join(directory, filename))
+
+                if self.flip_horizontal and np.random.random()>.5:
+                    method = Image.FLIP_LEFT_RIGHT
+                    sketch = sketch.transpose(method = method)
+
+                if self.flip_vertical and np.random.random()>.5:
+                    method = Image.FLIP_TOP_BOTTOM
+                    sketch = sketch.transpose(method = method)
+
                 
-                lines = RulerGenerator(shape = sketch.size, line_width = 3, spacing = 50, v_offset = .3, raggedness= .0, color =  255, color_variation= 0, angle = 10).image
+                
+                lines = RulerGenerator(shape = sketch.size, line_width = 3, spacing = 50, v_offset = .3, raggedness= .30, color =  188, color_variation= 30, angle = 10).image
 
                 ruled_sketch = Image.blend(sketch, lines, alpha = .125)
 
@@ -73,19 +83,19 @@ class SketchDataGenerator():
                     X = np.asarray(ruled_sketch)
                     Y = np.asarray(sketch)
                     lines = np.asarray(lines)
-                    yield Image.fromarray(np.hstack([lines,X,Y]))
+                    yield Image.fromarray(np.hstack([lines, X, Y]))
 
                 else:
                     raise Exception
 
 
 if __name__ == '__main__':
-    rg = RulerGenerator(shape = (500,400), line_width = 3, spacing = 25, v_offset = .3, raggedness= .10, color =  128, color_variation= 25, angle = 10)
-    i = rg.image
+    # rg = RulerGenerator(shape = (500,400), line_width = 3, spacing = 25, v_offset = .3, raggedness= .70, color =  128, color_variation= 25, angle = 10)
+    # i = rg.image
     # i.show()
 
     sdg = SketchDataGenerator()
 
-    for sketch in sdg.flow_from_directory('grayscale_images/large/Unruled', result_type='images'):
+    for sketch in sdg.flow_from_directory('grayscale_images/medium/Unruled', result_type='images'):
         sketch.show()
         break
