@@ -14,15 +14,13 @@ class RulerGenerator:
         assert -180 <= angle <= 180
         assert 0 <= v_offset <= 1
 
-        h, w = shape
+        w, h = shape
 
         basis = np.array([0]*spacing + [1]*line_width).astype('uint8')
         column = np.tile(basis, 1+int(2*h/len(basis)))[0:2*h]
         lines_array = np.tile(column, 2*w).reshape(2*w, 2*h).T
 
-        complementary_color = 255 - color
-
-        color_array = np.random.normal(size = (2*h, 2*w))*color_variation + complementary_color - color_variation/2 
+        color_array = np.random.normal(size = (2*h, 2*w))*color_variation + color - color_variation/2 
         color_array = color_array.astype('uint8')
 
         ragged_array = 1*(np.random.random(size = (2*h, 2*w))>raggedness).astype('uint8')
@@ -30,7 +28,7 @@ class RulerGenerator:
         lines_array *= color_array
         lines_array *= ragged_array
 
-        image = Image.fromarray(lines_array)
+        image = Image.fromarray(255- lines_array )
         image = image.rotate(angle)
 
         left = int(w/2)
@@ -63,17 +61,19 @@ class SketchDataGenerator():
         while True:
             for filename in filenames:
                 sketch = Image.open(os.path.join(directory, filename))
-                lines = RulerGenerator(shape = (500,400), line_width = 3, spacing = 25, v_offset = .3, raggedness= .10, color =  128, color_variation= 25, angle = 10).asarray
+                
+                lines = RulerGenerator(shape = sketch.size, line_width = 3, spacing = 25, v_offset = .3, raggedness= .10, color =  128, color_variation= 25, angle = 10).image
 
-                sketch_array = np.asarray(sketch)
-                X = sketch_array - lines
-                Y = sketch_array
+                ruled_sketch = Image.blend(sketch, lines, alpha = .5)
 
                 if result_type == 'arrays':
-                    yield X, Y
+                    yield np.asarray(ruled_sketch), np.asarray(sketch)
 
                 elif result_type == 'images':
-                    yield Image.fromarray(np.hstack([X,Y]))
+                    X = np.asarray(ruled_sketch)
+                    Y = np.asarray(sketch)
+                    lines = np.asarray(lines)
+                    yield Image.fromarray(np.hstack([lines,X,Y]))
 
                 else:
                     raise Exception
@@ -88,3 +88,4 @@ if __name__ == '__main__':
 
     for sketch in sdg.flow_from_directory('grayscale_images/medium/Unruled', result_type='images'):
         sketch.show()
+        break
