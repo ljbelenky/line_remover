@@ -8,7 +8,7 @@ import os
 class LineRemover:
     def __init__(self, fname):
         self.fname = fname
-        self.image = Image.open(fname)
+        self.image = Image.open(fname).resize((400,400))
         self._pixel_array = None
         self._array = None
 
@@ -48,13 +48,48 @@ class LineRemover:
 
 
 
-    def determine_presumtive_backgrounds(self):
+    def determine_presumptive_background(self):
         '''
         Cluster by pixel color
-        The cluster with lightest average value is presumed to be background
+        The cluster with larger average value is presumed to be background
         '''
-        if 'presumtive_background' not in self.pixel_array:
-            self.pixel_array['presumtive_background'] = KMeans(2).fit(self.pixel_array[['value']]).labels_
+        if 'presumptive_background' not in self.pixel_array:
+            self.pixel_array['presumptive_background'] = KMeans(2).fit(self.pixel_array[['value']]).labels_
+
+            groups = self.pixel_array[['value', 'presumptive_background']].groupby('presumptive_background').mean()['value']
+
+            larger = groups.idxmax()
+
+            self.pixel_array['presumptive_background'] = self.pixel_array['presumptive_background'] == larger
+
+
+    @property
+    def presumptive_background_image(self):
+        
+        if 'presumptive_background' not in self.pixel_array:
+            self.determine_presumptive_background()
+
+        array = self.array * self.pixel_array['presumptive_background'].values.reshape(self.width, self.height)
+
+        return Image.fromarray(array)
+
+    def determine_row_average(self):
+        if 'row_average' not in self.pixel_array:
+
+            row_average = self.pixel_array.groupby('y').mean()['value'].reset_index().rename(columns = {'value':'row_average'})
+            self._pixel_array = self.pixel_array.merge(row_average, on = 'y')
+            self._pixel_array['delta_to_row_average'] = self.pixel_array['value'] - self.pixel_array['row_average']
+
+
+    @property
+    def data(self):
+        self.determine_presumptive_background()
+        self.determine_row_average()
+        return self.pixel_array
+
+
+
+
             
 
 
