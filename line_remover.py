@@ -4,11 +4,12 @@ import matplotlib.pyplot as plt
 from sklearn.cluster import KMeans
 from PIL import Image
 import os
+from sklearn.decomposition import NMF
 
 class LineRemover:
     def __init__(self, fname):
         self.fname = fname
-        self.image = Image.open(fname).resize((400,400))
+        self.image = Image.open(fname).resize((400,500)) #width, height
         self._pixel_array = None
         self._array = None
 
@@ -54,7 +55,7 @@ class LineRemover:
         The cluster with larger average value is presumed to be background
         '''
         if 'presumptive_background' not in self.pixel_array:
-            self.pixel_array['presumptive_background'] = KMeans(2).fit(self.pixel_array[['value']]).labels_
+            self.pixel_array['presumptive_background'] = KMeans(4).fit(self.pixel_array[['value']]).labels_
 
             groups = self.pixel_array[['value', 'presumptive_background']].groupby('presumptive_background').mean()['value']
 
@@ -63,15 +64,19 @@ class LineRemover:
             self.pixel_array['presumptive_background'] = self.pixel_array['presumptive_background'] == larger
 
 
-    @property
-    def presumptive_background_image(self):
+    def presumptive_background_image(self, background = True):
         
         if 'presumptive_background' not in self.pixel_array:
             self.determine_presumptive_background()
 
-        array = self.array * self.pixel_array['presumptive_background'].values.reshape(self.width, self.height)
+        orientation = self.width, self.height
+        
+        mask = self.pixel_array['presumptive_background'].values
+        if not background: mask = (1-mask)
 
-        return Image.fromarray(array)
+        array = mask.reshape(orientation) * self.array
+
+        return Image.fromarray(array.astype('uint8'))
 
     def determine_row_average(self):
         if 'row_average' not in self.pixel_array:
@@ -88,7 +93,8 @@ class LineRemover:
         return self.pixel_array
 
 
-
+    def plot_by_cluster(self):
+        pass
 
             
 
