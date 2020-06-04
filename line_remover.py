@@ -9,7 +9,7 @@ from sklearn.decomposition import NMF
 class LineRemover:
     def __init__(self, fname):
         self.fname = fname
-        self.image = Image.open(fname).resize((400,500)) #width, height
+        self.image = Image.open(fname)#.resize((400,500)) #width, height
         self._pixel_array = None
         self._array = None
 
@@ -21,11 +21,11 @@ class LineRemover:
 
     @property
     def width(self):
-        return self.array.shape[0]
+        return self.array.shape[1]
 
     @property
     def height(self):
-        return self.array.shape[1]
+        return self.array.shape[0]
 
     @property
     def pixel_array(self):
@@ -69,12 +69,11 @@ class LineRemover:
         if 'presumptive_background' not in self.pixel_array:
             self.determine_presumptive_background()
 
-        orientation = self.width, self.height
         
         mask = self.pixel_array['presumptive_background'].values
         if not background: mask = (1-mask)
 
-        array = mask.reshape(orientation) * self.array
+        array = mask.reshape((self.width, self.height)) * self.array
 
         return Image.fromarray(array.astype('uint8'))
 
@@ -107,10 +106,10 @@ class LineRemover:
 if __name__ == '__main__':
 
     ruled_dir = 'Sketches/Ruled'
-    ruled_iamges = [f for f in os.listdir(ruled_dir) if os.path.isfile(os.path.join(ruled_dir, f))]
+    ruled_images = [f for f in os.listdir(ruled_dir) if os.path.isfile(os.path.join(ruled_dir, f))]
 
 
-    for f in ruled_iamges:
+    for f in ruled_images:
 
         l1 = LineRemover(os.path.join(ruled_dir, f))
         break
