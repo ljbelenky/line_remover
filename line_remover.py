@@ -126,43 +126,50 @@ class LineRemover:
             
 
 
-    def plot_clusters(self):
+    def plot_clusters(self, overlay = True):
         if 'label' not in self.pixel_array:
             self.cluster()
-        c = self.pixel_array['label'].values.reshape((self.height, -1))
-        plt.matshow(c)
-        plt.show()
-
-
-
-
-    # def determine_presumptive_background(self):
-    #     '''
-    #     Cluster by pixel color
-    #     The cluster with larger average value is presumed to be background
-    #     '''
-    #     if 'presumptive_background' not in self.pixel_array:
-    #         self.pixel_array['presumptive_background'] = KMeans(4).fit(self.pixel_array[['value']]).labels_
-
-    #         groups = self.pixel_array[['value', 'presumptive_background']].groupby('presumptive_background').mean()['value']
-
-    #         larger = groups.idxmax()
-
-    #         self.pixel_array['presumptive_background'] = self.pixel_array['presumptive_background'] == larger
-
-
-    # def presumptive_background_image(self, background = True):
         
-    #     if 'presumptive_background' not in self.pixel_array:
-    #         self.determine_presumptive_background()
+        if overlay:
+            c = self.pixel_array['label'].values.reshape((self.height, -1))
+            plt.matshow(c)
+            plt.show()
+
+        # else:
+        #     clusters = self.pixel_array['label'].max()
+        #     fig, axs = plt.subplots(self.pixel_array['label'].max() - 1)
+
+        #     for 
+
+
+
+    def determine_presumptive_background(self):
+        '''
+        Cluster by pixel color
+        The cluster with larger average value is presumed to be background
+        '''
+        if 'presumptive_background' not in self.pixel_array:
+            self.pixel_array['presumptive_background'] = KMeans(4).fit(self.pixel_array[['value']]).labels_
+
+            groups = self.pixel_array[['value', 'presumptive_background']].groupby('presumptive_background').mean()['value']
+
+            larger = groups.idxmax()
+
+            self.pixel_array['presumptive_background'] = self.pixel_array['presumptive_background'] == larger
+
+
+    def presumptive_background_image(self, background = True):
+        
+        if 'presumptive_background' not in self.pixel_array:
+            self.determine_presumptive_background()
 
         
-    #     mask = self.pixel_array['presumptive_background'].values.reshape(self.height, self.width)
-    #     if not background: mask = (1-mask)
+        mask = self.pixel_array['presumptive_background'].values.reshape(self.height, self.width)
+        if not background: mask = (1-mask)
 
-    #     array = mask * self.array
+        array = mask * self.array
 
-    #     return Image.fromarray(array.astype('uint8'))
+        return Image.fromarray(array.astype('uint8'))
 
     def determine_row_average(self):
         if 'row_average' not in self.pixel_array:
@@ -174,7 +181,7 @@ class LineRemover:
 
     @property
     def data(self):
-        # self.determine_presumptive_background()
+        self.determine_presumptive_background()
         self.determine_row_average()
         self.convolve()
         return self.pixel_array
@@ -184,6 +191,7 @@ class LineRemover:
     def clustering_data(self):
         excluded_columns = ['x','y','subimage','presumptive_background']
         return self.data[[col for col in self.data.columns if col not in excluded_columns ]]
+
             
 
 
