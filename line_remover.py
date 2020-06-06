@@ -135,11 +135,12 @@ class LineRemover:
             plt.matshow(c)
             plt.show()
 
-        # else:
-        #     clusters = self.pixel_array['label'].max()
-        #     fig, axs = plt.subplots(self.pixel_array['label'].max() - 1)
+        else:
+            clusters = self.pixel_array['label'].max() + 1
+            fig, axs = plt.subplots(self.pixel_array['label'].max() - 1)
 
-        #     for 
+            for i, ax in enumerate(axs):
+                plt.matshow(self.array * ((self.pixel_array['labels']==i).values.reshape(-1, self.width)))
 
 
 
@@ -208,7 +209,7 @@ if __name__ == '__main__':
 
     for i, f in enumerate(ruled_images):
 
-        if i < 2: continue
+        # if i < 2: continue
 
         l1 = LineRemover(os.path.join(ruled_dir, f))
         break
