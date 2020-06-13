@@ -2,6 +2,14 @@
 
 A project using CNNs to remove ruled lines from sketches
 
+# Clustering Approach
+
+This method uses clustering to divide the pixels into several classes, such as background, sketch, ruled lines and intersection points.
+
+run the file `line_remover.py` to generate a LineRemover object with all of the pertinent features for a single image.
+
+![clusters](readme_images/clusters.png)
+
 ## Raw Data
 
 There are 1124 sketches in the 'Sketches' directory. (Some files appear to be corrupt, will need to ivnestigate this.)
