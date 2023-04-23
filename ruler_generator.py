@@ -17,11 +17,11 @@ class RulerGenerator:
     def __init__(self, shape, line_width, lines, v_offset, raggedness, color, color_variation, angle):
 
         lines = lines or 12
-        assert 0 <= raggedness <= 1
-        assert 0 <= color <= 255
-        assert 0 <= color_variation <= 255
-        assert -180 <= angle <= 180
-        assert 0 <= v_offset <= 1
+        # assert 0 <= raggedness <= 1
+        # assert 0 <= color <= 255
+        # assert 0 <= color_variation <= 255
+        # assert -180 <= angle <= 180
+        # assert 0 <= v_offset <= 1
 
         w, h = shape
         spacing = h//lines
@@ -30,8 +30,8 @@ class RulerGenerator:
         lines_array = np.tile(column, 2*w).reshape(2*w, 2*h).T
 
         color_array = np.random.normal(
-            size=(2*h, 2*w))*color_variation + color - color_variation/2
-        color_array = color_array.astype('uint8')
+            size=(2*h, 2*w))*color_variation + color
+        color_array = np.clip(color_array.astype('uint8'), 0, 255)
         self.color_array = color_array
 
         ragged_array = 1*(np.random.random(size=(2*h, 2*w))
@@ -40,12 +40,13 @@ class RulerGenerator:
         lines_array *= color_array
         lines_array *= ragged_array
         l = 255 - lines_array
-        color_offsets = np.random.randint(-60,60, 3)
-        red = np.clip(np.where(l==255,255, l/3+color_offsets[0]), 0,255).astype('uint8')
-        green = np.clip(np.where(l==255,255,l/3+color_offsets[1]),0,255).astype('uint8')
-        blue = np.clip(np.where(l==255,255, l/3+color_offsets[2]),0,255).astype('uint8')
+        # color_offsets = np.random.randint(-60,60, 3)
+        # red = np.clip(np.where(l==255,255, l/3+color_offsets[0]), 0,255).astype('uint8')
+        # green = np.clip(np.where(l==255,255,l/3+color_offsets[1]),0,255).astype('uint8')
+        # blue = np.clip(np.where(l==255,255, l/3+color_offsets[2]),0,255).astype('uint8')
         
-        RGB_array = np.stack([red,green,blue], axis =2)
+        # RGB_array = np.stack([red,green,blue], axis =2)
+        RGB_array = np.stack([l]*3, axis=2)
         image = Image.fromarray(RGB_array, mode = 'RGB')
         
         image = image.rotate(angle)
