@@ -57,3 +57,20 @@ class RulerGenerator:
         bottom = top + h
 
         self.image = image.crop((left, top, right, bottom))
+
+
+if __name__=='__main__':
+
+    kwargs = {'shape': (500,500),
+  'line_width': np.clip(np.random.randint(-2,3),1,4),
+  'lines': np.random.randint(15,40),
+  'v_offset': np.random.random(),
+  'raggedness': -.15 + np.random.random()/2,
+  'color': np.random.randint(100, 175),
+  'color_variation': np.random.randint(-15, 16),
+  'angle': np.random.randint(-7, 8)}
+    rg = RulerGenerator(**kwargs)
+
+    rg = RulerGenerator(**kwargs)
+    
+    rg.image.show()
