@@ -22,6 +22,8 @@ DATA_DIR = os.path.join(BASE_DIR, 'data', 'Sketches')
 LINES_ADDED_DIR = os.path.join(DATA_DIR, 'lines_added')
 UNRULED_DIR = os.path.join(DATA_DIR, 'Unruled')
 LINES_REMOVED_DIR = os.path.join(DATA_DIR, 'lines_removed')
+RULED_DIR = os.path.join(DATA_DIR, 'Ruled')
+RESULTS_DIR = os.path.join(BASE_DIR, 'results')
 PROGRESS_DIR = os.path.join(BASE_DIR, 'progress')
 MODEL_PATH = os.path.join(BASE_DIR, 'line_remover_model.keras')
 
@@ -31,7 +33,7 @@ IMG_WIDTH = 512
 BATCH_SIZE = 2  # With bfloat16 mixed precision on 4GB GPU
 EPOCHS = 200
 PATIENCE = 25
-MAX_TRAINING_TIME = 5 * 60  # 5 minutes in seconds
+MAX_TRAINING_TIME = 3*3600  # in seconds
 
 
 class TimeLimitCallback(keras.callbacks.Callback):
@@ -481,6 +483,55 @@ def train(resume=False):
     print(f"Model saved to: {MODEL_PATH}")
 
 
+def process_ruled_images(model, limit=None, compare=False):
+    """Process images from Ruled directory and save to results.
+
+    These are real images with ruled lines (no corresponding unlined versions).
+
+    Args:
+        model: The trained model
+        limit: If specified, only process this many images
+        compare: If True, create side-by-side comparison images (input | output)
+    """
+    os.makedirs(RESULTS_DIR, exist_ok=True)
+
+    # Get all image files
+    image_files = sorted([
+        f for f in os.listdir(RULED_DIR)
+        if f.lower().endswith(('.jpg', '.jpeg', '.png'))
+    ])
+
+    if limit:
+        image_files = image_files[:limit]
+
+    mode_str = "comparison" if compare else "output"
+    print(f"Processing {len(image_files)} ruled images ({mode_str} mode)...")
+
+    for i, filename in enumerate(image_files):
+        input_path = os.path.join(RULED_DIR, filename)
+        output_path = os.path.join(RESULTS_DIR, filename)
+
+        try:
+            # Get the output image
+            result_img = remove_lines(model, input_path)
+
+            if compare:
+                # Create side-by-side comparison
+                input_img = Image.open(input_path).convert('RGB')
+                comparison = create_comparison_image(input_img, result_img)
+                comparison.save(output_path, quality=95)
+            else:
+                # Save just the output
+                result_img.save(output_path, quality=95)
+
+            print(f"[{i+1}/{len(image_files)}] Processed: {filename}")
+        except Exception as e:
+            print(f"[{i+1}/{len(image_files)}] Error processing {filename}: {e}")
+
+    print(f"\nDone! Processed {len(image_files)} images.")
+    print(f"Output saved to: {RESULTS_DIR}")
+
+
 def inference(limit=None, compare=False):
     """Load trained model and process images."""
     if not os.path.exists(MODEL_PATH):
@@ -494,6 +545,19 @@ def inference(limit=None, compare=False):
     process_all_images(model, limit=limit, compare=compare)
 
 
+def inference_ruled(limit=None, compare=False):
+    """Load trained model and process ruled images."""
+    if not os.path.exists(MODEL_PATH):
+        print(f"Error: Model not found at {MODEL_PATH}")
+        print("Please train the model first with: python line_remover.py --train")
+        return
+
+    print(f"Loading model from {MODEL_PATH}...")
+    model = keras.models.load_model(MODEL_PATH)
+
+    process_ruled_images(model, limit=limit, compare=compare)
+
+
 def main():
     import argparse
     parser = argparse.ArgumentParser(description='Remove ruled lines from sketch images')
@@ -503,6 +567,8 @@ def main():
                         help='Continue training from saved model')
     parser.add_argument('--process', action='store_true',
                         help='Process images from lines_added to lines_removed')
+    parser.add_argument('--ruled', action='store_true',
+                        help='Process images from Ruled directory to results')
     parser.add_argument('--compare', action='store_true',
                         help='Create side-by-side comparison images (input | output)')
     parser.add_argument('--limit', type=int, default=None,
@@ -511,13 +577,17 @@ def main():
 
     if args.train or args.resume:
         train(resume=args.resume)
+    elif args.ruled:
+        inference_ruled(limit=args.limit, compare=args.compare)
     elif args.process or args.compare:
         inference(limit=args.limit, compare=args.compare)
     else:
         print("Usage:")
         print("  python line_remover.py --train              Train the model from scratch")
         print("  python line_remover.py --resume             Continue training from saved model")
-        print("  python line_remover.py --process            Process all images")
+        print("  python line_remover.py --process            Process all images (lines_added)")
+        print("  python line_remover.py --ruled              Process ruled images to results/")
+        print("  python line_remover.py --ruled --compare    With side-by-side comparisons")
         print("  python line_remover.py --compare            Create side-by-side comparisons")
         print("  python line_remover.py --process --limit 5  Process 5 images")
 

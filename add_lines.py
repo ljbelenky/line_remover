@@ -15,6 +15,25 @@ UNRULED_DIR = os.path.join(DATA_DIR, 'Unruled')
 OUTPUT_DIR = os.path.join(DATA_DIR, 'lines_added')
 
 
+def count_existing_variations(output_dir, base_name):
+    """Count how many variations already exist for a given base name."""
+    if not os.path.exists(output_dir):
+        return 0
+
+    count = 0
+    for filename in os.listdir(output_dir):
+        name_without_ext = os.path.splitext(filename)[0]
+        # Check if this file starts with our base name followed by _XXXXX
+        if name_without_ext.startswith(base_name + '_'):
+            try:
+                suffix_str = name_without_ext.split('_')[-1]
+                int(suffix_str)  # Validate it's a number
+                count += 1
+            except ValueError:
+                continue
+    return count
+
+
 def get_next_suffix_for_image(output_dir, base_name):
     """Get the next available suffix number for a specific image base name."""
     existing_files = os.listdir(output_dir)
@@ -84,7 +103,7 @@ def main(limit=None, repeat=1):
 
     Args:
         limit: If specified, only process this many images (for testing)
-        repeat: Number of variations to create for each image
+        repeat: Number of variations to create for each image (skips if already have this many)
     """
     # Ensure output directory exists
     os.makedirs(OUTPUT_DIR, exist_ok=True)
@@ -98,16 +117,35 @@ def main(limit=None, repeat=1):
     if limit:
         image_files = image_files[:limit]
 
-    total_outputs = len(image_files) * repeat
-    print(f"Found {len(image_files)} images to process")
-    print(f"Creating {repeat} variation(s) per image ({total_outputs} total outputs)")
+    # Calculate how many new images we actually need to create
+    total_needed = 0
+    skipped_images = 0
+    for filename in image_files:
+        name, _ = os.path.splitext(filename)
+        existing = count_existing_variations(OUTPUT_DIR, name)
+        needed = max(0, repeat - existing)
+        total_needed += needed
+        if needed == 0:
+            skipped_images += 1
+
+    print(f"Found {len(image_files)} source images")
+    print(f"Target: {repeat} variation(s) per image")
+    print(f"Skipping {skipped_images} images that already have {repeat}+ variations")
+    print(f"Creating {total_needed} new images")
 
     output_count = 0
     for i, filename in enumerate(image_files):
         input_path = os.path.join(UNRULED_DIR, filename)
         name, ext = os.path.splitext(filename)
 
-        for r in range(repeat):
+        # Check how many variations already exist
+        existing_count = count_existing_variations(OUTPUT_DIR, name)
+        needed = max(0, repeat - existing_count)
+
+        if needed == 0:
+            continue  # Skip - already have enough variations
+
+        for r in range(needed):
             # Create output filename with per-image suffix
             suffix = get_next_suffix_for_image(OUTPUT_DIR, name)
             output_filename = f"{name}_{suffix:05d}{ext}"
@@ -116,11 +154,11 @@ def main(limit=None, repeat=1):
             try:
                 add_lines_to_image(input_path, output_path)
                 output_count += 1
-                print(f"[{output_count}/{total_outputs}] Processed: {filename} -> {output_filename}")
+                print(f"[{output_count}/{total_needed}] Processed: {filename} -> {output_filename}")
             except Exception as e:
-                print(f"[{output_count}/{total_outputs}] Error processing {filename}: {e}")
+                print(f"[{output_count}/{total_needed}] Error processing {filename}: {e}")
 
-    print(f"\nDone! Created {output_count} images from {len(image_files)} source images.")
+    print(f"\nDone! Created {output_count} new images.")
     print(f"Output saved to: {OUTPUT_DIR}")
 
 
