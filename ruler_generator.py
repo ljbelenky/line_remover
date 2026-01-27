@@ -16,6 +16,7 @@ def merge_images(im1, im2):
 
 class RulerGenerator:
     # Line color presets that match real ruled paper
+    # Note: Lower values = darker lines when blended
     COLOR_PRESETS = {
         'blue': {'r': 180, 'g': 200, 'b': 255},      # Light blue
         'cyan': {'r': 100, 'g': 220, 'b': 220},      # Cyan/turquoise (like real ruled paper)
@@ -23,6 +24,10 @@ class RulerGenerator:
         'gray': {'r': 160, 'g': 160, 'b': 160},      # Gray lines
         'light_gray': {'r': 190, 'g': 190, 'b': 190}, # Light gray
         'green': {'r': 180, 'g': 220, 'b': 180},     # Green tinted (some paper)
+        # Faint presets matching real scanned ruled paper
+        'faint_gray': {'r': 220, 'g': 220, 'b': 220},      # Very faint gray (like real paper)
+        'faint_blue': {'r': 220, 'g': 225, 'b': 240},      # Very faint blue tint
+        'very_faint': {'r': 235, 'g': 235, 'b': 235},      # Barely visible gray
     }
 
     MARGIN_COLORS = {

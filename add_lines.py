@@ -79,41 +79,62 @@ def generate_random_ruler_params(shape, realistic=True):
 
     if realistic:
         # Parameters matching real ruled paper scans
-        # Real ruled paper typically has 200-300px spacing at high resolution
-        # Use a range to add variety
-        target_spacing = np.random.randint(180, 280)
+        # Real ruled paper typically has consistent spacing
+        target_spacing = np.random.randint(80, 150)  # Tighter spacing like real paper
         line_count = calculate_line_count(height, target_spacing)
 
-        # Mix of cyan and gray lines like real notebooks
-        line_color = np.random.choice(['cyan', 'gray', 'gray'])  # More gray
+        # Real ruled paper has DARK, VISIBLE lines - not faint!
+        # Based on actual ruled paper scans, lines are clearly visible gray
+        intensity_range = np.random.choice(['dark', 'dark', 'medium', 'very_dark'])
+        if intensity_range == 'very_dark':
+            # Very prominent lines like old ruled paper
+            color = np.random.randint(180, 230)
+            line_color = 'gray'
+        elif intensity_range == 'dark':
+            # Standard ruled paper - clearly visible
+            color = np.random.randint(140, 190)
+            line_color = np.random.choice(['gray', 'light_gray'])
+        else:  # medium
+            # Lighter but still visible
+            color = np.random.randint(100, 150)
+            line_color = np.random.choice(['gray', 'light_gray'])
+
         return {
             'shape': shape,
-            'line_width': np.random.choice([1, 2, 2, 3]),  # Include thicker lines
-            'lines': line_count,  # Calculated based on spacing
+            'line_width': np.random.choice([1, 2, 2]),  # 1-2 pixel lines
+            'lines': line_count,
             'v_offset': np.random.random(),
-            'raggedness': np.random.uniform(-0.05, 0.05),  # Minimal raggedness
-            'color': np.random.randint(200, 255),  # Strong visible lines
-            'color_variation': np.random.randint(0, 15),  # Some variation
-            'angle': np.random.uniform(-0.5, 0.5),  # Nearly horizontal
-            'line_color': line_color,  # Mix of cyan and gray
-            'add_margin': False,  # No margin line
-            'waviness': 0.0,  # Perfectly straight
+            'raggedness': np.random.uniform(-0.01, 0.01),  # Very minimal raggedness
+            'color': color,
+            'color_variation': np.random.randint(0, 5),  # Very consistent
+            'angle': np.random.uniform(-0.2, 0.2),  # Nearly horizontal
+            'line_color': line_color,
+            'add_margin': False,
+            'waviness': 0.0,
         }
     else:
-        # More varied synthetic lines - also use spacing-based calculation
+        # More varied synthetic lines - wider range including faint
         target_spacing = np.random.randint(60, 200)
         line_count = calculate_line_count(height, target_spacing)
+
+        # Include some faint lines in varied mode too (20% chance)
+        if np.random.random() < 0.2:
+            color = np.random.randint(20, 60)
+            line_color = np.random.choice(['faint_gray', 'faint_blue', 'light_gray'])
+        else:
+            color = np.random.randint(40, 150)  # Wider range
+            line_color = None  # Random color
 
         return {
             'shape': shape,
             'line_width': np.clip(np.random.randint(-2, 4), 1, 4),
-            'lines': line_count,  # Calculated based on spacing
+            'lines': line_count,
             'v_offset': np.random.random(),
             'raggedness': -0.15 + np.random.random() / 2,
-            'color': np.random.randint(60, 130),
+            'color': color,
             'color_variation': np.random.randint(-15, 16),
             'angle': np.random.randint(-7, 8),
-            'line_color': None,  # Random color
+            'line_color': line_color,
             'add_margin': None,  # Random margin
             'waviness': np.random.uniform(0, 0.3),
         }

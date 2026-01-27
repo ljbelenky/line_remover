@@ -29,9 +29,14 @@ RESULTS_DIR = os.path.join(BASE_DIR, 'results')
 PROGRESS_DIR = os.path.join(BASE_DIR, 'progress')
 MODEL_PATH = os.path.join(BASE_DIR, 'line_remover_model.keras')
 
+# Preprocessed patches directories
+PATCHES_DIR = os.path.join(DATA_DIR, 'patches')
+TRAIN_PATCHES_DIR = os.path.join(PATCHES_DIR, 'train')
+VAL_PATCHES_DIR = os.path.join(PATCHES_DIR, 'validation')
+
 # Model parameters
 PATCH_SIZE = 512  # Train on random patches at original resolution
-BATCH_SIZE = 2  # Reduced for larger patches
+BATCH_SIZE = 1  # Single batch to fit in 4GB GPU memory
 EPOCHS = 2000
 PATIENCE = 50
 MAX_TRAINING_TIME = 6*3600  # in seconds
@@ -64,48 +69,84 @@ class TimeLimitCallback(keras.callbacks.Callback):
 class ProgressCallback(keras.callbacks.Callback):
     """Save comparison images when loss improves."""
 
-    def __init__(self, sample_image_path, target_image_path=None, ruled_image_path=None):
+    def __init__(self, val_sample_path=None, val_target_path=None,
+                 train_sample_path=None, train_target_path=None,
+                 ruled_image_path=None):
         super().__init__()
-        self.sample_image_path = sample_image_path
-        self.target_image_path = target_image_path
+        # Validation sample (from validation set)
+        self.val_sample_path = val_sample_path
+        self.val_target_path = val_target_path
+        # Training sample (from training set)
+        self.train_sample_path = train_sample_path
+        self.train_target_path = train_target_path
+        # Real ruled paper sample
         self.ruled_image_path = ruled_image_path
+
         self.best_loss = float('inf')
         self.current_epoch = 0
-        # Extract base filename for naming
-        self.sample_name = os.path.splitext(os.path.basename(sample_image_path))[0]
+
+        # Extract base filenames for naming
+        if val_sample_path:
+            self.val_name = os.path.splitext(os.path.basename(val_sample_path))[0]
+        if train_sample_path:
+            self.train_name = os.path.splitext(os.path.basename(train_sample_path))[0]
         if ruled_image_path:
             self.ruled_name = os.path.splitext(os.path.basename(ruled_image_path))[0]
-        os.makedirs(PROGRESS_DIR, exist_ok=True)
+
+        # Create subdirectories for organized progress tracking
+        self.validation_dir = os.path.join(PROGRESS_DIR, 'validation')
+        self.training_dir = os.path.join(PROGRESS_DIR, 'training')
+        self.ruled_dir = os.path.join(PROGRESS_DIR, 'ruled')
+        os.makedirs(self.validation_dir, exist_ok=True)
+        os.makedirs(self.training_dir, exist_ok=True)
+        os.makedirs(self.ruled_dir, exist_ok=True)
 
     def on_epoch_end(self, epoch, logs=None):
         self.current_epoch = epoch + 1
         current_loss = logs.get('loss')
         if current_loss is not None and current_loss < self.best_loss:
             self.best_loss = current_loss
-            self._save_comparison(current_loss)
+            self._save_validation_comparison(current_loss)
+            self._save_training_comparison(current_loss)
             self._save_ruled_comparison(current_loss)
 
-    def _save_comparison(self, loss):
-        """Generate and save a 4-panel comparison image using tile-based inference."""
-        # Load input image (from lines_added)
-        input_img = Image.open(self.sample_image_path).convert('RGB')
+    def _save_validation_comparison(self, loss):
+        """Generate and save comparison image for validation sample."""
+        if not self.val_sample_path or not os.path.exists(self.val_sample_path):
+            return
 
-        # Use tile-based inference
+        input_img = Image.open(self.val_sample_path).convert('RGB')
         output_img = remove_lines_tiled(self.model, input_img)
 
-        # Load target image (from Unruled) if available
         target_img = None
-        if self.target_image_path and os.path.exists(self.target_image_path):
-            target_img = Image.open(self.target_image_path).convert('RGB')
+        if self.val_target_path and os.path.exists(self.val_target_path):
+            target_img = Image.open(self.val_target_path).convert('RGB')
 
-        # Create comparison image (4-panel if target exists, 2-panel otherwise)
         comparison = create_comparison_image(input_img, output_img, target_img)
 
-        # Save with filename format: {image_name}_epoch{epoch}_{loss}.jpg
-        filename = f"{self.sample_name}_epoch{self.current_epoch:04d}_{loss:.6f}.jpg"
-        output_path = os.path.join(PROGRESS_DIR, filename)
+        filename = f"{self.val_name}_epoch{self.current_epoch:04d}_{loss:.6f}.jpg"
+        output_path = os.path.join(self.validation_dir, filename)
         comparison.save(output_path, quality=95)
-        print(f" -> Saved progress image: {filename}")
+        print(f" -> Saved validation progress: {filename}")
+
+    def _save_training_comparison(self, loss):
+        """Generate and save comparison image for training sample."""
+        if not self.train_sample_path or not os.path.exists(self.train_sample_path):
+            return
+
+        input_img = Image.open(self.train_sample_path).convert('RGB')
+        output_img = remove_lines_tiled(self.model, input_img)
+
+        target_img = None
+        if self.train_target_path and os.path.exists(self.train_target_path):
+            target_img = Image.open(self.train_target_path).convert('RGB')
+
+        comparison = create_comparison_image(input_img, output_img, target_img)
+
+        filename = f"{self.train_name}_epoch{self.current_epoch:04d}_{loss:.6f}.jpg"
+        output_path = os.path.join(self.training_dir, filename)
+        comparison.save(output_path, quality=95)
+        print(f" -> Saved training progress: {filename}")
 
     def _save_ruled_comparison(self, loss):
         """Generate and save a 2-panel comparison for a real ruled paper image."""
@@ -121,11 +162,11 @@ class ProgressCallback(keras.callbacks.Callback):
         # Create 2-panel comparison (no target for ruled images)
         comparison = create_comparison_image(input_img, output_img)
 
-        # Save with filename format: ruled_{image_name}_epoch{epoch}_{loss}.jpg
-        filename = f"ruled_{self.ruled_name}_epoch{self.current_epoch:04d}_{loss:.6f}.jpg"
-        output_path = os.path.join(PROGRESS_DIR, filename)
+        # Save to ruled subdirectory
+        filename = f"{self.ruled_name}_epoch{self.current_epoch:04d}_{loss:.6f}.jpg"
+        output_path = os.path.join(self.ruled_dir, filename)
         comparison.save(output_path, quality=95)
-        print(f" -> Saved ruled progress image: {filename}")
+        print(f" -> Saved ruled progress: {filename}")
 
 
 def get_base_name(filename):
@@ -277,6 +318,94 @@ def get_validation_pairs():
     return lined_paths, original_paths, num_samples
 
 
+def get_preprocessed_patch_pairs(patches_dir):
+    """Get paths to preprocessed patch pairs from a patches directory.
+
+    Returns lists of input and target patch paths.
+    """
+    input_dir = os.path.join(patches_dir, 'input')
+    target_dir = os.path.join(patches_dir, 'target')
+
+    if not os.path.exists(input_dir) or not os.path.exists(target_dir):
+        return [], [], 0
+
+    input_files = sorted([f for f in os.listdir(input_dir)
+                          if f.lower().endswith(('.jpg', '.jpeg', '.png'))])
+
+    input_paths = []
+    target_paths = []
+
+    for filename in input_files:
+        input_path = os.path.join(input_dir, filename)
+        target_path = os.path.join(target_dir, filename)
+
+        if os.path.exists(target_path):
+            input_paths.append(input_path)
+            target_paths.append(target_path)
+
+    return input_paths, target_paths, len(input_paths)
+
+
+def load_patch_pair(input_path, target_path):
+    """Load a preprocessed patch pair (no extraction needed)."""
+    input_img = load_image_tf(input_path)
+    target_img = load_image_tf(target_path)
+
+    # Ensure correct shape
+    input_img = tf.ensure_shape(input_img, [PATCH_SIZE, PATCH_SIZE, 3])
+    target_img = tf.ensure_shape(target_img, [PATCH_SIZE, PATCH_SIZE, 3])
+
+    return input_img, target_img
+
+
+def create_dataset_from_patches(input_paths, target_paths):
+    """Create a tf.data.Dataset from preprocessed patch paths."""
+    dataset = tf.data.Dataset.from_tensor_slices((input_paths, target_paths))
+    dataset = dataset.shuffle(buffer_size=len(input_paths))
+    dataset = dataset.map(
+        load_patch_pair,
+        num_parallel_calls=tf.data.AUTOTUNE,
+        deterministic=False
+    )
+    dataset = dataset.batch(BATCH_SIZE)
+    dataset = dataset.prefetch(tf.data.AUTOTUNE)
+    return dataset
+
+
+def get_real_ruled_paths():
+    """Get paths to real ruled images for domain adaptation.
+
+    These images don't have ground truth, so they'll be used with
+    pseudo-labels generated by the model during training.
+    """
+    if not os.path.exists(RULED_DIR):
+        return [], 0
+
+    ruled_files = [f for f in os.listdir(RULED_DIR)
+                   if f.lower().endswith(('.jpg', '.jpeg', '.png'))]
+
+    ruled_paths = []
+    skipped_small = 0
+
+    for ruled_file in ruled_files:
+        ruled_path = os.path.join(RULED_DIR, ruled_file)
+
+        # Check image size
+        try:
+            with Image.open(ruled_path) as img:
+                width, height = img.size
+                if width < MIN_IMAGE_SIZE or height < MIN_IMAGE_SIZE:
+                    skipped_small += 1
+                    continue
+        except Exception:
+            continue
+
+        ruled_paths.append(ruled_path)
+
+    print(f"Found {len(ruled_paths)} real ruled images for domain adaptation (skipped {skipped_small} too small)")
+    return ruled_paths, len(ruled_paths)
+
+
 def create_dataset_from_paths(lined_paths, original_paths):
     """Create a tf.data.Dataset from lists of file paths."""
     dataset = tf.data.Dataset.from_tensor_slices((lined_paths, original_paths))
@@ -288,6 +417,63 @@ def create_dataset_from_paths(lined_paths, original_paths):
     dataset = dataset.batch(BATCH_SIZE)
     dataset = dataset.prefetch(tf.data.AUTOTUNE)
     return dataset
+
+
+def load_real_ruled_patch(image_path):
+    """Load a random patch from a real ruled image for pseudo-labeling."""
+    img = tf.io.read_file(image_path)
+    img = tf.image.decode_image(img, channels=3, expand_animations=False)
+    img = tf.cast(img, tf.float32) / 255.0
+
+    # Get image dimensions
+    shape = tf.shape(img)
+    height, width = shape[0], shape[1]
+
+    # Random crop location
+    max_y = height - PATCH_SIZE
+    max_x = width - PATCH_SIZE
+    y = tf.random.uniform([], 0, max_y + 1, dtype=tf.int32)
+    x = tf.random.uniform([], 0, max_x + 1, dtype=tf.int32)
+
+    # Extract patch
+    patch = img[y:y+PATCH_SIZE, x:x+PATCH_SIZE, :]
+    patch = tf.ensure_shape(patch, [PATCH_SIZE, PATCH_SIZE, 3])
+
+    return patch
+
+
+def create_pseudo_labeled_batch(model, real_ruled_paths, batch_size=1):
+    """Create a batch of real ruled patches with pseudo-labels from model predictions.
+
+    The model's current output becomes the target, encouraging consistency
+    and helping the model adapt to real ruled paper characteristics.
+
+    Note: Uses batch_size=1 by default to avoid OOM during inference.
+    """
+    # Sample random paths
+    n_images = len(real_ruled_paths)
+    indices = np.random.randint(0, n_images, size=batch_size)
+    sampled_paths = [real_ruled_paths[i] for i in indices]
+
+    # Load patches one at a time to manage memory
+    patches = []
+    pseudo_labels_list = []
+
+    for path in sampled_paths:
+        patch = load_real_ruled_patch(path)
+        patch_batch = tf.expand_dims(patch, 0)  # Add batch dimension
+
+        # Generate pseudo-label for this single patch
+        pseudo_label = model(patch_batch, training=False)
+
+        patches.append(patch)
+        pseudo_labels_list.append(pseudo_label[0])  # Remove batch dimension
+
+    # Stack into batches
+    input_batch = tf.stack(patches, axis=0)
+    pseudo_labels = tf.stack(pseudo_labels_list, axis=0)
+
+    return input_batch, pseudo_labels
 
 
 def sample_random_patches(lined_paths, original_paths, n_patches):
@@ -395,10 +581,18 @@ def build_model():
 
 def train_model(model, lined_paths, original_paths, num_samples,
                 val_lined_paths=None, val_original_paths=None, val_num_samples=0,
-                sample_image_path=None, target_image_path=None, ruled_image_path=None):
+                val_sample_path=None, val_target_path=None,
+                train_sample_path=None, train_target_path=None,
+                ruled_image_path=None, real_ruled_paths=None,
+                use_preprocessed=False):
     """Train the model with random patch sampling each epoch.
 
     Uses validation set for early stopping and model selection.
+    Incorporates real ruled images with pseudo-labels for domain adaptation.
+
+    Args:
+        use_preprocessed: If True, lined_paths/original_paths are preprocessed patches.
+                          Skip on-the-fly extraction and use direct loading.
     """
     import time
 
@@ -416,15 +610,32 @@ def train_model(model, lined_paths, original_paths, num_samples,
     val_patches = min(200, val_num_samples * 4) if val_num_samples > 0 else 0
     use_validation = val_num_samples > 0 and val_lined_paths and val_original_paths
 
+    # Domain adaptation settings
+    use_domain_adapt = real_ruled_paths and len(real_ruled_paths) > 0
+    domain_adapt_start_epoch = 50  # Start domain adaptation after model has learned basics
+    domain_adapt_patches = min(100, len(real_ruled_paths) * 4) if use_domain_adapt else 0
+    domain_adapt_weight = 0.3  # Weight for domain adaptation loss (lower = less influence)
+
     print(f"Using {patches_per_epoch} random patches per epoch ({steps_per_epoch} steps)")
     print(f"Training images: {num_samples}")
     print(f"Validation images: {val_num_samples}")
     if use_validation:
         print(f"Validation patches per epoch: {val_patches}")
     print(f"Patch size: {PATCH_SIZE}x{PATCH_SIZE}")
+    if use_domain_adapt:
+        print(f"Domain adaptation: {len(real_ruled_paths)} real ruled images")
+        print(f"  - Starting at epoch {domain_adapt_start_epoch}")
+        print(f"  - Using {domain_adapt_patches} patches per epoch")
+        print(f"  - Weight: {domain_adapt_weight}")
 
-    # Progress callback for visualization
-    progress_callback = ProgressCallback(sample_image_path, target_image_path, ruled_image_path) if sample_image_path else None
+    # Progress callback for visualization (saves both training and validation samples)
+    progress_callback = ProgressCallback(
+        val_sample_path=val_sample_path,
+        val_target_path=val_target_path,
+        train_sample_path=train_sample_path,
+        train_target_path=train_target_path,
+        ruled_image_path=ruled_image_path
+    ) if (val_sample_path or train_sample_path) else None
     if progress_callback:
         progress_callback.set_model(model)
 
@@ -441,21 +652,51 @@ def train_model(model, lined_paths, original_paths, num_samples,
             print(f"\nTime limit reached ({MAX_TRAINING_TIME}s). Stopping training.")
             break
 
-        # Sample random image pairs for patch extraction
-        sampled_lined, sampled_original = sample_random_patches(
-            lined_paths, original_paths, patches_per_epoch)
-        dataset = create_dataset_from_paths(sampled_lined, sampled_original)
+        # Create training dataset for this epoch
+        if use_preprocessed:
+            # Preprocessed patches - sample from available patches
+            indices = np.random.choice(num_samples, size=min(patches_per_epoch, num_samples), replace=False)
+            sampled_input = [lined_paths[i] for i in indices]
+            sampled_target = [original_paths[i] for i in indices]
+            dataset = create_dataset_from_patches(sampled_input, sampled_target)
+        else:
+            # On-the-fly extraction - sample image pairs and extract patches
+            sampled_lined, sampled_original = sample_random_patches(
+                lined_paths, original_paths, patches_per_epoch)
+            dataset = create_dataset_from_paths(sampled_lined, sampled_original)
 
-        # Train for one epoch
+        # Train for one epoch on synthetic data
         history = model.fit(dataset, epochs=1, verbose=0)
         train_loss = history.history['loss'][0]
         train_mae = history.history['mae'][0]
 
+        # Domain adaptation: train on real ruled images with pseudo-labels
+        domain_loss = None
+        if use_domain_adapt and epoch >= domain_adapt_start_epoch:
+            # Train on real ruled images using model's own predictions as targets
+            # This helps the model adapt to real ruled paper characteristics
+            # Use batch_size=1 for pseudo-labeling to avoid OOM during inference
+            da_batch_size = 1
+            for _ in range(domain_adapt_patches):
+                input_batch, pseudo_labels = create_pseudo_labeled_batch(
+                    model, real_ruled_paths, da_batch_size)
+                da_history = model.train_on_batch(input_batch, pseudo_labels)
+                if domain_loss is None:
+                    domain_loss = da_history[0] if isinstance(da_history, list) else da_history
+                else:
+                    domain_loss = (domain_loss + (da_history[0] if isinstance(da_history, list) else da_history)) / 2
+
         # Compute validation loss
         if use_validation:
-            val_sampled_lined, val_sampled_original = sample_random_patches(
-                val_lined_paths, val_original_paths, val_patches)
-            val_dataset = create_dataset_from_paths(val_sampled_lined, val_sampled_original)
+            if use_preprocessed:
+                val_indices = np.random.choice(val_num_samples, size=min(val_patches, val_num_samples), replace=False)
+                val_sampled_input = [val_lined_paths[i] for i in val_indices]
+                val_sampled_target = [val_original_paths[i] for i in val_indices]
+                val_dataset = create_dataset_from_patches(val_sampled_input, val_sampled_target)
+            else:
+                val_sampled_lined, val_sampled_original = sample_random_patches(
+                    val_lined_paths, val_original_paths, val_patches)
+                val_dataset = create_dataset_from_paths(val_sampled_lined, val_sampled_original)
             val_results = model.evaluate(val_dataset, verbose=0)
             val_loss = val_results[0]
             val_mae = val_results[1]
@@ -468,6 +709,10 @@ def train_model(model, lined_paths, original_paths, num_samples,
             loss_for_stopping = train_loss
             loss_str = f"Epoch {epoch+1}/{EPOCHS} - loss: {train_loss:.6f} - mae: {train_mae:.6f}"
 
+        # Add domain adaptation loss to output if active
+        if domain_loss is not None:
+            loss_str += f" - da_loss: {domain_loss:.6f}"
+
         print(f"{loss_str} - {time.time()-epoch_start:.1f}s")
 
         # Check for improvement (using validation loss if available)
@@ -477,11 +722,12 @@ def train_model(model, lined_paths, original_paths, num_samples,
             model.save(MODEL_PATH)
             print(f" -> Model saved (val_loss: {loss_for_stopping:.6f})")
 
-            # Save progress image
+            # Save progress images (validation, training, and ruled)
             if progress_callback:
                 progress_callback.current_epoch = epoch + 1
                 progress_callback.best_loss = loss_for_stopping
-                progress_callback._save_comparison(loss_for_stopping)
+                progress_callback._save_validation_comparison(loss_for_stopping)
+                progress_callback._save_training_comparison(loss_for_stopping)
                 progress_callback._save_ruled_comparison(loss_for_stopping)
         else:
             patience_counter += 1
@@ -737,21 +983,51 @@ def train(resume=False):
     else:
         print("No GPU available, using CPU")
 
-    # Get training image pairs
-    print("\nScanning for training image pairs...")
-    lined_paths, original_paths, num_samples = get_image_pairs()
+    # Check for preprocessed patches first (faster training)
+    use_preprocessed = False
+    print("\nChecking for preprocessed patches...")
+    train_input_paths, train_target_paths, train_patch_count = get_preprocessed_patch_pairs(TRAIN_PATCHES_DIR)
+    val_input_paths, val_target_paths, val_patch_count = get_preprocessed_patch_pairs(VAL_PATCHES_DIR)
 
-    if num_samples == 0:
-        print("Error: No valid image pairs found. Please run add_lines.py first.")
-        return
+    if train_patch_count > 0:
+        use_preprocessed = True
+        print(f"Found {train_patch_count} preprocessed training patches")
+        print(f"Found {val_patch_count} preprocessed validation patches")
+        lined_paths, original_paths, num_samples = train_input_paths, train_target_paths, train_patch_count
+        val_lined_paths, val_original_paths, val_num_samples = val_input_paths, val_target_paths, val_patch_count
+    else:
+        print("No preprocessed patches found, using on-the-fly extraction")
+        # Get training image pairs
+        print("\nScanning for training image pairs...")
+        lined_paths, original_paths, num_samples = get_image_pairs()
 
-    # Get validation image pairs
-    print("\nScanning for validation image pairs...")
-    val_lined_paths, val_original_paths, val_num_samples = get_validation_pairs()
+        if num_samples == 0:
+            print("Error: No valid image pairs found. Please run add_lines.py first.")
+            return
 
-    # Get a sample image for progress visualization
-    sample_image_path = lined_paths[0] if lined_paths else None
-    target_image_path = original_paths[0] if original_paths else None
+        # Get validation image pairs
+        print("\nScanning for validation image pairs...")
+        val_lined_paths, val_original_paths, val_num_samples = get_validation_pairs()
+
+    # Get real ruled images for domain adaptation
+    print("\nScanning for real ruled images...")
+    real_ruled_paths, real_ruled_count = get_real_ruled_paths()
+
+    # Get sample images for progress visualization (both training and validation)
+    val_sample_path = None
+    val_target_path = None
+    train_sample_path = None
+    train_target_path = None
+
+    if val_lined_paths:
+        val_sample_path = val_lined_paths[0]
+        val_target_path = val_original_paths[0]
+        print(f"Using validation image for progress: {os.path.basename(val_sample_path)}")
+
+    if lined_paths:
+        train_sample_path = lined_paths[0]
+        train_target_path = original_paths[0]
+        print(f"Using training image for progress: {os.path.basename(train_sample_path)}")
 
     # Get a sample ruled image for progress visualization (real ruled paper)
     ruled_image_path = None
@@ -785,7 +1061,10 @@ def train(resume=False):
     print("\nStarting training...")
     train_model(model, lined_paths, original_paths, num_samples,
                 val_lined_paths, val_original_paths, val_num_samples,
-                sample_image_path, target_image_path, ruled_image_path)
+                val_sample_path=val_sample_path, val_target_path=val_target_path,
+                train_sample_path=train_sample_path, train_target_path=train_target_path,
+                ruled_image_path=ruled_image_path, real_ruled_paths=real_ruled_paths,
+                use_preprocessed=use_preprocessed)
 
     print("\nTraining complete!")
     print(f"Model saved to: {MODEL_PATH}")
