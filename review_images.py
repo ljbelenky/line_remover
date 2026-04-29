@@ -47,8 +47,16 @@ def review_images(directory):
             i += 1
             continue
 
+        # Scale image to fit screen
+        screen_w, screen_h = 1920, 1080
+        img_h, img_w = img.shape[:2]
+        scale = min(screen_w / img_w, (screen_h - 80) / img_h, 1.0)
+        if scale < 1.0:
+            display_img = cv2.resize(img, (int(img_w * scale), int(img_h * scale)), interpolation=cv2.INTER_AREA)
+        else:
+            display_img = img.copy()
+
         # Add text overlay with progress info
-        display_img = img.copy()
         text = f"[{i+1}/{total}] {filename} (a=accept, d=delete, q=quit)"
         cv2.putText(display_img, text, (10, 30), cv2.FONT_HERSHEY_SIMPLEX, 0.7, (0, 0, 0), 3)
         cv2.putText(display_img, text, (10, 30), cv2.FONT_HERSHEY_SIMPLEX, 0.7, (255, 255, 255), 1)
@@ -86,7 +94,7 @@ if __name__ == '__main__':
     if len(sys.argv) > 1:
         directory = sys.argv[1]
     else:
-        directory = 'data/Sketches/patches/example_lines'
+        directory = 'results/compare'
 
     if not os.path.exists(directory):
         print(f"Directory not found: {directory}")

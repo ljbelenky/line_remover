@@ -28,14 +28,19 @@ def get_example_lines_list():
 
 
 def multiply_blend(target_img, lines_img):
-    """Multiply blend two images.
+    """Multiply blend target with squared lines.
 
-    Darkens target where lines are darker.
+    Squaring the lines makes them darker/more prominent before blending,
+    better matching the appearance of real ruled paper.
     """
     target_arr = np.array(target_img).astype(np.float32) / 255.0
     lines_arr = np.array(lines_img).astype(np.float32) / 255.0
 
-    blended = target_arr * lines_arr
+    blended = target_arr * (lines_arr ** 2)
+
+    # Apply smoothstep contrast curve: darks darker, lights brighter, 0/0.5/1 fixed
+    blended = 3 * blended**2 - 2 * blended**3
+
     blended = (blended * 255).clip(0, 255).astype(np.uint8)
 
     return Image.fromarray(blended)
